@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #Copyright Bail 2021-2022
-#com.Bail.pswbook 密码本 v1.2_3
+#com.Bail.pswbook 密码本 v1.2.1_4
 #2021.6.23-2022.11.18
 
 #加密层:最终文件(原始shelve文件=>b85encode(head键(总密码的sha1),note键(每对密码字典(名称:(帐号，处理后密码=>总密码md5加密(用户输入的密码=>b85encode)，备注)))))
@@ -8,7 +8,7 @@
 import json,          hashlib,     base64,        getpass,         sys, getopt
 #      密码本核心组件 哈希表散列化 base85加密解密 输入密码不被看到 退出 获取参数
 
-VER = 'v1.2_3'	#版本号
+VER = 'v1.2.1_4'	#版本号
 HELP = '''
 用法: pswbook
       pswbook 文件名
@@ -34,12 +34,15 @@ delete:删除密码项
 exit:安全退出'''	#软件内命令帮助
 ERROR = '''错误码(返回值)列表:
 0:正常
-1:密码错误
-2:系统不支持，请关注本软件更新
-3:安全退出警告
-4:不能指定多个文件
-127:未知错误'''
+1:未知错误
+2:密码错误
+3:系统不支持，请关注本软件更新
+4:安全退出警告
+5:不能指定多个文件'''
 UPLOG = '''更新日志
+2022.11.18：v1.2.1_4
+  -还原了出现错误时Python默认报错消息，方便定位错误
+  *调整了错误码
 2022.11.18:v1.2_3
   +增加了删除密码项的功能
 2022.11.18:v1.1_2
@@ -83,7 +86,7 @@ def getarg():
             arg['file'] = args[0]
         else:
             print('不能指定多个文件')
-            exit(4)
+            exit(5)
 '''
 def checkarg():	#用于检验并上传参数
 ##    global arg
@@ -250,21 +253,23 @@ def main():
         createfile(fn)
     endefile(False,fn)
     try:
+##        raise
         dic = readfile(fn)
         pswen = askpsw()
         if not checkpsw(dic,pswen[1]):
             print('密码错误')
-            return 1
+            return 2    #错误码“1”被Python默认错误码占用，故从2开始
         loop(dic,pswen[0])
     except json.decoder.JSONDecodeError:
         print('文件格式错误')
-        return 2
+        return 3
     except KeyboardInterrupt:
         print("警告:请使用`exit'安全退出")
-        return 3
-    except Exception as e:
-        print(f'错误:{e}')
-        return 127
+        return 4
+    #错误码“5”在“getarg”函数中
+    except:
+        raise
+##        return 127
     finally:
         save(fn,dic)
         endefile(True,fn)
