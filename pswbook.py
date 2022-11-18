@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #Copyright Bail 2021-2022
-#com.Bail.pswbook 密码本 v1.0_1
+#com.Bail.pswbook 密码本 v1.2_3
 #2021.6.23-2022.11.18
 
 #加密层:最终文件(原始shelve文件=>b85encode(head键(总密码的sha1),note键(每对密码字典(名称:(帐号，处理后密码=>总密码md5加密(用户输入的密码=>b85encode)，备注)))))
@@ -8,7 +8,7 @@
 import json,          hashlib,     base64,        getpass,         sys, getopt
 #      密码本核心组件 哈希表散列化 base85加密解密 输入密码不被看到 退出 获取参数
 
-VER = 'v1.1_2'	#版本号
+VER = 'v1.2_3'	#版本号
 HELP = '''
 用法: pswbook
       pswbook 文件名
@@ -30,6 +30,7 @@ CMDHELP = '''
 add:向密码本中添加项目
 get:从密码本中获取项目
 list:列出所有密码项（备注和账号）
+delete:删除密码项
 exit:安全退出'''	#软件内命令帮助
 ERROR = '''错误码(返回值)列表:
 0:正常
@@ -39,6 +40,8 @@ ERROR = '''错误码(返回值)列表:
 4:不能指定多个文件
 127:未知错误'''
 UPLOG = '''更新日志
+2022.11.18:v1.2_3
+  +增加了删除密码项的功能
 2022.11.18:v1.1_2
   +增加了列出所有密码项的功能
 2021.7.20:v1.0_1
@@ -193,6 +196,19 @@ def listout(dic:dict):
 dic(dict):密码本字典'''
     for i,j in dic['note'].items():
         print(j[1],i,sep=':')
+def delete(dic:dict):
+    '''删除密码项
+dic(dict):密码本字典'''
+    name = input('要删除的账号 >')
+    if name in dic['note'].keys():
+        ensure = input(f"确认删除：{name}[{dic['note'][name][1]}]？[Y/n] >")
+        if (ensure == '') or (ensure.lower() == 'y'):
+            del dic['note'][name]
+            print('已删除')
+        else:
+            print('中止')
+    else:
+        print('密码项不存在')
 def save(fn:str,dic:dict):
     with open(fn,'w') as file:
         file.write(json.dumps(dic))
@@ -218,6 +234,8 @@ def loop(dic,key:str):	#主循环
             get(dic,key)
         elif cmd == 'list':
             listout(dic)
+        elif cmd == 'delete':
+            delete(dic)
         elif cmd == 'exit':
             break
         elif cmd == 'help':
@@ -254,4 +272,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-
