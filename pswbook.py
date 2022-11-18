@@ -1,13 +1,14 @@
-#Copyright Bail 2021
+#!/usr/bin/python3
+#Copyright Bail 2021-2022
 #com.Bail.pswbook 密码本 v1.0_1
-#2021.6.23
+#2021.6.23-2022.11.18
 
 #加密层:最终文件(原始shelve文件=>b85encode(head键(总密码的sha1),note键(每对密码字典(名称:(帐号，处理后密码=>总密码md5加密(用户输入的密码=>b85encode)，备注)))))
 
-import shelve,        hashlib,     base64,        getpass,         sys, getopt
+import json,          hashlib,     base64,        getpass,         sys, getopt
 #      密码本核心组件 哈希表散列化 base85加密解密 输入密码不被看到 退出 获取参数
 
-VER = 'v1.0_1'	#版本号
+VER = 'v1.1_2'	#版本号
 HELP = '''
 用法: pswbook
       pswbook 文件名
@@ -28,6 +29,7 @@ arg = {'create':False}	#参数表
 CMDHELP = '''
 add:向密码本中添加项目
 get:从密码本中获取项目
+list:列出所有密码项（备注和账号）
 exit:安全退出'''	#软件内命令帮助
 ERROR = '''错误码(返回值)列表:
 0:正常
@@ -37,17 +39,14 @@ ERROR = '''错误码(返回值)列表:
 4:不能指定多个文件
 127:未知错误'''
 UPLOG = '''更新日志
-v1.1:
-     +适配Windows版本
-v1.0.1:
-       +列出密码本条目(隐藏密码)
-----↓已发布，↑预计更新----
-v1.0:2021.7.20
-     +创建密码本
-     +向密码本添加条目
-     +从密码本获取条目'''
+2022.11.18:v1.1_2
+  +增加了列出所有密码项的功能
+2021.7.20:v1.0_1
+  +创建密码本
+  +向密码本添加条目
+  +从密码本获取条目'''
 VERINFO = f'pswbook {VER}'	#版本信息
-DEFAULTFILE = b'CVFLFXD~5&LPsz$c|u1pFfcGMFfn;TM>0M<dpR&Mc|u2WR9|m<Fg7b`Brq^AFfd?#Re5|cFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFf&?BS1>RzFfcGPT1{6lFfcGMFj7)EF)%PNFfd;?G($EpFfcGMGfq)scQ7z8FfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMQc^iFd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfdq8MKexXW_)u*Ff~C~Z7?t}FfcJsPGK}LUO;m;d`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMd`@#iFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfe>hb3-sNFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMT4sE6L}o)rN>ng3Kul{eFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGMFfcGM'
+DEFAULTFILE = {'head':'','note':{}}
 
 def getarg():
     opts,args = getopt.getopt(sys.argv[1:],'ce',['help','version','uplog'])
@@ -152,19 +151,18 @@ def endefile(isen:bool,fn:str):	#文件的加密解密
             filew.write(base64.b85decode(f))
     del f	#节省内存
 def createfile(fn:str):	#创建新文件格式
-    with open(fn,'wb') as f:
-        f.write(base64.b85decode(DEFAULTFILE))
+    save(fn,DEFAULTFILE)
 ##    input()
-    endefile(False,fn)
     dic = readfile(fn)
     pswen = askpsw()
     dic['head'] = pswen[1]
-    dic.close()
+    save(fn,dic)
     endefile(True,fn)
     #现在问题:如何安全地创建新文件
     #实验1:查看b85decode空字节的结果:返回空字节:可
-def readfile(fn:str):	#读取密码本并转化为shelve对象
-    dic = shelve.open(fn,writeback=True)
+def readfile(fn:str):	#读取密码本并转化为字典
+    with open(fn) as file:
+        dic = json.loads(file.read())
     return dic
 def checkpsw(dic,sha1)->bool:	#检验总密码的正确性
     if sha1 == dic['head']:
@@ -174,14 +172,14 @@ def checkpsw(dic,sha1)->bool:	#检验总密码的正确性
 def ask()->str:
     cmd = input('>>')
     return cmd
-def add(dic,key):
+def add(dic:dict,key:str):
     name = input('账号 >')
     psw = getpass.getpass('密码 >').encode()
     pswen = myende(True,base64.b85encode(psw).decode(),key)
     #实验2:b85encode后再decode(),查看返回值类型:str:可
     note = input('备注 >')
     dic['note'][name] = (pswen,note)
-def get(dic,key):
+def get(dic:dict,key:str):
     name = input('账号 >')
     try:
         pswen,note = dic['note'][name]
@@ -190,6 +188,14 @@ def get(dic,key):
         return
     psw = base64.b85decode(myende(False,pswen,key).encode()).decode()
     print(f'密码:{psw}\n备注:{note}')
+def listout(dic:dict):
+    '''列出所有密码项（仅显示备注）
+dic(dict):密码本字典'''
+    for i,j in dic['note'].items():
+        print(j[1],i,sep=':')
+def save(fn:str,dic:dict):
+    with open(fn,'w') as file:
+        file.write(json.dumps(dic))
 def loop(dic,key:str):	#主循环
     while True:
         cmd = ask()
@@ -200,7 +206,6 @@ def loop(dic,key:str):	#主循环
             case 'get':
                 get(dic)
             case 'exit':
-                dic.close()
                 break
             case 'help':
                 print(CMDHELP)
@@ -208,11 +213,12 @@ def loop(dic,key:str):	#主循环
                 print('未知命令，请使用help查看')
         '''
         if cmd == 'add':
-             add(dic,key)
+            add(dic,key)
         elif cmd == 'get':
             get(dic,key)
+        elif cmd == 'list':
+            listout(dic)
         elif cmd == 'exit':
-            dic.close()
             break
         elif cmd == 'help':
             print(CMDHELP)
@@ -227,18 +233,14 @@ def main():
     endefile(False,fn)
     try:
         dic = readfile(fn)
-    except dbm.error as e:
-        if 'gnu' in e:
-            raise EnvironmentError('系统暂不支持，请关注本软件更新')
-        else:
-            print('文件格式错误')
-            return 2
-    try:
         pswen = askpsw()
         if not checkpsw(dic,pswen[1]):
             print('密码错误')
             return 1
         loop(dic,pswen[0])
+    except json.decoder.JSONDecodeError:
+        print('文件格式错误')
+        return 2
     except KeyboardInterrupt:
         print("警告:请使用`exit'安全退出")
         return 3
@@ -246,7 +248,7 @@ def main():
         print(f'错误:{e}')
         return 127
     finally:
-        dic.close()
+        save(fn,dic)
         endefile(True,fn)
     return 0
 
